@@ -1,20 +1,8 @@
-<table>
-  <tr>
-    <td align="center" style="padding: 20px; border-radius: 8px; background: linear-gradient(135deg, #0a1a3f 0%, #1e3a8a 100%);">
-      <strong style="font-size: 24px; color: #ffffff;">🛑 PROJECT OUTDATED 🛑</strong><br><br>
-      <span style="font-size: 16px; color: #cbd5e1;">
-        This project is no longer maintained. Use the actively developed version instead:
-      </span><br><br>
-      <a href="https://github.com/noitavoo/WorkshopDL" style="font-size: 20px; color: #60a5fa; font-weight: bold;">👉 https://github.com/noitavoo/WorkshopDL 👈</a>
-    </td>
-  </tr>
-</table>
-
-[![Banner](https://raw.githubusercontent.com/imwaitingnow/WorkshopDL/main/screenshots/legacy/banner_opaque_red_download.png)](https://github.com/imwaitingnow/WorkshopDL/releases/latest)
+[![Banner](https://raw.githubusercontent.com/imwaitingnow/WorkshopDL/main/screenshots/legacy/banner_opaque_red_download.png)](https://github.com/TeALO36/WorkshopDL/releases/latest)
 
 <em>Since most of the popular workshop downloading websites have shutdown or instruct users to download & use SteamCMD, a command-line program,
 I've decided to make my own standalone workshop downloader with a GUI to make things easier.</em>
-WorkshopDL [![Version](https://img.shields.io/badge/version-2.0.3-blue?style=flat-circle)](https://github.com/imwaitingnow/WorkshopDL/releases)
+WorkshopDL [![Version](https://img.shields.io/badge/version-2.0.5-blue?style=flat-circle)](https://github.com/TeALO36/WorkshopDL/releases)
 
 
 ### Screenshots
@@ -101,6 +89,27 @@ Note 2: If a game does not work, try to download the mods using the AppID (Homep
 You can also try downloading with SteamWebAPI.
 It works with a lot of SteamCMD unsupported games, usually single-player ones.
 </details>
+
+## Golf With Your Friends (added in 2.0.5)
+
+Golf With Your Friends (**AppID 431240**) is part of the supported games list, so its workshop maps -
+for example [Pyramid Par](https://steamcommunity.com/sharedfiles/filedetails/?id=3764231585) - can be downloaded and installed with WorkshopDL.
+
+### Downloading a Golf With Your Friends map
+
+1. Paste the map URL into the *Workshop mod URL* box, e.g. `https://steamcommunity.com/sharedfiles/filedetails/?id=3764231585`.
+2. Golf With Your Friends does **not** allow anonymous workshop downloads (SteamCMD answers `Missing decryption key`).
+   Switch **Anonymous Mode** off and sign in with the Steam account that owns the game.
+3. Click **Download** - when the download finishes the folder containing the map opens automatically.
+
+### Installing the downloaded map
+
+- Steam copy: copy the map folder into `C:\Program Files (x86)\Steam\steamapps\workshop\contentę240\`
+  (subscribing to the map on the Workshop does exactly that for you).
+- Level Editor: copy the map folder into `%USERPROFILE%\AppData\LocalLow\Team17 Digital Ltd\Golf With Your Friends\CustomLevels`.
+
+> The game list lives in `Modules/games.txt` and `Modules/appids.txt` (mirrored in `supported/`).
+> WorkshopDL refreshes those files only when the upstream `list_version` increases, so the Golf With Your Friends entry stays in place.
 
 ## FAQ
 <details closed>

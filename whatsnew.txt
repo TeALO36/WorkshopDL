@@ -1,9 +1,6 @@
-Version 2.0.4
-- [*] fixed an issue where concurrent download of single mods would no longer show the download complete screen using steamcmd
-- [*] fixed an issue where some Modules weren't included with the installer
-
-This project is now outdated and no longer maintained. Please head over to the new, actively developed WorkshopDL project:
-
-  https://github.com/noitavoo/WorkshopDL
-
-We invite all users to switch to the new project for continued updates, fixes, and support. Thank you for using WorkshopDL!
+Version 2.0.5
+- [+] Added Golf With Your Friends (AppID 431240) to the supported games list
+- [+] Golf With Your Friends workshop maps can now be downloaded and installed
+      (tested with Pyramid Par: https://steamcommunity.com/sharedfiles/filedetails/?id=3764231585)
+- [*] Supported games list refreshed (list version 21)
+- [*] Removed the dead "project outdated" notice (the repository it pointed to no longer exists)
