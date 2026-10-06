@@ -2,7 +2,7 @@
 
 <em>Since most of the popular workshop downloading websites have shutdown or instruct users to download & use SteamCMD, a command-line program,
 I've decided to make my own standalone workshop downloader with a GUI to make things easier.</em>
-WorkshopDL [![Version](https://img.shields.io/badge/version-2.0.5-blue?style=flat-circle)](https://github.com/TeALO36/WorkshopDL/releases)
+WorkshopDL [![Version](https://img.shields.io/badge/version-2.0.6-blue?style=flat-circle)](https://github.com/TeALO36/WorkshopDL/releases)
 
 
 ### Screenshots
@@ -89,6 +89,21 @@ Note 2: If a game does not work, try to download the mods using the AppID (Homep
 You can also try downloading with SteamWebAPI.
 It works with a lot of SteamCMD unsupported games, usually single-player ones.
 </details>
+
+## WorkshopDL Launcher (new in 2.0.6)
+A modern, guided front-end for WorkshopDL — ideal if you just want to paste a link and go:
+
+![Launcher screenshot](screenshots/launcher.png)
+
+- **One-click installer** — `WorkshopDL.2.0.6_installer.exe` installs per-user, no admin needed.
+- **Automatic game detection** — paste a Workshop link, the launcher tells you which game it belongs to,
+  with retries and a clear message when Steam rate-limits requests.
+- **Force the target game** — disagree with the detection (or the game isn't installed)?
+  Use the target selector to pick any detected or supported game (e.g. Spacewar) yourself.
+- **Cancel a running download** at any time.
+- **Hide games you don't care about** — right-click a game in the list to ignore it;
+  bring everything back with "show all hidden games".
+- **See where things go** — the game list shows the full install folder of every detected game.
 
 ## Golf With Your Friends (added in 2.0.5)
 

@@ -1,3 +1,17 @@
+Version 2.0.6
+- [+] New one-click Windows installer (per-user, no admin required)
+- [+] Launcher: force the target game with a selector — override the
+      auto-detected game with any detected or supported game (e.g. Spacewar)
+- [+] Launcher: cancel a running download at any time
+- [+] Launcher: hide/ignore games from the detected list
+      (right-click a game -> hide; "show all hidden" restores them)
+- [+] Launcher: analysis now retries automatically when Steam rate-limits
+      requests (HTTP 429) and shows a clear message instead of a raw error
+- [*] Launcher: much more reliable game detection (workshop links no longer
+      attributed to the wrong game, e.g. Golf maps detected as Garry's Mod)
+- [*] Launcher: clearer interface — result panel with item details,
+      full install paths, resizable game list
+
 Version 2.0.5
 - [+] Added Golf With Your Friends (AppID 431240) to the supported games list
 - [+] Golf With Your Friends workshop maps can now be downloaded and installed
