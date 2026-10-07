@@ -1,5 +1,7 @@
 ; ============================================================
-;  WorkshopDL 2.0.7 — Inno Setup script
+;  WorkshopDL 2.0.8 — Inno Setup script
+;  - Ships a SINGLE application: "WorkshopDL Launcher.exe" (the old
+;    WorkshopDL.exe window has been merged into it).
 ;  Modern, friendly installer (per-user, no admin prompt).
 ;  - Cleanly uninstalls any previous WorkshopDL version
 ;    (other AppId, e.g. 2.0.4) before installing: no stale
@@ -13,7 +15,7 @@
 ;  Friends included) + the WorkshopDL Launcher GUI.
 ; ============================================================
 #define MyAppName "WorkshopDL"
-#define MyAppVersion "2.0.7"
+#define MyAppVersion "2.0.8"
 #define MyAppPublisher "TeALO36"
 #define MyAppURL "https://github.com/TeALO36/WorkshopDL"
 #define MyAppExeName "WorkshopDL Launcher.exe"
@@ -37,7 +39,7 @@ PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=..\dist
 OutputBaseFilename=WorkshopDL.{#MyAppVersion}_installer
 SetupIconFile=..\assets\workshopdl.ico
-UninstallDisplayIcon={app}\WorkshopDL.exe
+UninstallDisplayIcon={app}\WorkshopDL Launcher.exe
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -58,22 +60,24 @@ fr.LauncherFileIcon=Raccourci bureau du Launcher
 en.CleanupFailed=Some files from a previous WorkshopDL version could not be removed automatically. Please uninstall the old version from Windows Settings, then install again.
 fr.CleanupFailed=Certains fichiers d'une ancienne version de WorkshopDL n'ont pas pu être supprimés automatiquement. Veuillez désinstaller l'ancienne version depuis les Réglages de Windows, puis réinstaller.
 [Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 Name: "desktoplauncher"; Description: "{cm:DesktopLauncherTask}"; GroupDescription: "{cm:AdditionalIcons}"
 [Files]
-; --- main application (portable payload, prepared in staging) ---
-Source: "..\staging\WorkshopDL.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\staging\WorkshopDL.dat"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\staging\WorkshopDL.ini"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist
+; --- single application (portable payload, prepared in staging) ---
 Source: "..\staging\WorkshopDL Launcher.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\staging\Modules\*"; DestDir: "{app}\Modules"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\staging\README.txt"; DestDir: "{app}"; Flags: ignoreversion
+[InstallDelete]
+; Legacy Clickteam build — removed so upgrades of the same AppId stay clean too.
+Type: files; Name: "{app}\WorkshopDL.exe"
+Type: files; Name: "{app}\WorkshopDL.dat"
+Type: files; Name: "{app}\WorkshopDL.ini"
+Type: files; Name: "{app}\Modules\*.mfx"
+Type: files; Name: "{app}\Modules\mmfs2.dll"
+Type: files; Name: "{app}\Modules\gmad.exe"
 [Icons]
-Name: "{group}\WorkshopDL"; Filename: "{app}\WorkshopDL.exe"
-Name: "{group}\WorkshopDL Launcher"; Filename: "{app}\WorkshopDL Launcher.exe"
+Name: "{group}\WorkshopDL"; Filename: "{app}\WorkshopDL Launcher.exe"
 Name: "{group}\Uninstall WorkshopDL"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\WorkshopDL Launcher"; Filename: "{app}\WorkshopDL Launcher.exe"; Tasks: desktoplauncher
-Name: "{autodesktop}\WorkshopDL"; Filename: "{app}\WorkshopDL.exe"; Tasks: desktopicon
+Name: "{autodesktop}\WorkshopDL"; Filename: "{app}\WorkshopDL Launcher.exe"; Tasks: desktoplauncher
 [Run]
 Filename: "{app}\WorkshopDL Launcher.exe"; Description: "{cm:LaunchNow}"; Flags: nowait postinstall skipifsilent; Check: CanLaunchAfterInstall
 [UninstallDelete]
@@ -121,6 +125,30 @@ var
 function IsOwnUninstallKey(const Subkey: String): Boolean;
 begin
   Result := Pos(OwnAppId, UpperCase(Subkey)) > 0;
+end;
+
+{ Legacy leftovers from the 2.0.x Clickteam build. Removed on upgrade so the
+  new single-app install stays clean. }
+procedure RemoveOneLegacyFile(const Dir, Name: String);
+var
+  F: String;
+begin
+  if Dir = '' then Exit;
+  F := AddBackslash(Dir) + Name;
+  if FileExists(F) then
+  begin
+    if DeleteFile(F) then
+      Log('Removed legacy file ' + F)
+    else
+      CleanupLeftovers := True;
+  end;
+end;
+
+procedure RemoveOldAppFiles(const Dir: String);
+begin
+  RemoveOneLegacyFile(Dir, 'WorkshopDL.exe');
+  RemoveOneLegacyFile(Dir, 'WorkshopDL.dat');
+  RemoveOneLegacyFile(Dir, 'WorkshopDL.ini');
 end;
 
 function IsWorkshopDLName(const S: String): Boolean;
@@ -323,6 +351,8 @@ begin
     { Known folders that may remain without a registry entry }
     RemoveDirIfLeftover(ExpandConstant('{commonpf32}\WorkshopDL'));
     RemoveDirIfLeftover(ExpandConstant('{commonpf64}\WorkshopDL'));
+    { Also strip the legacy single-app files from the target dir itself. }
+    RemoveOldAppFiles(ExpandConstant('{app}'));
     RemoveOldShortcuts();
     if CleanupLeftovers then
       MsgBox(ExpandConstant('{cm:CleanupFailed}'), mbInformation, MB_OK);

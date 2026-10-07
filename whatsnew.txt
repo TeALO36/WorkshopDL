@@ -1,4 +1,17 @@
-Version 2.0.7
+Version 2.0.8
+- [+] The Launcher is now the ONE and only WorkshopDL application, with a
+      brand-new interface. The old WorkshopDL.exe window is gone, and so is
+      the "open in WorkshopDL" hand-over button — everything happens in-app.
+- [+] "Mettre à jour" button restores the classic update function: it updates
+      SteamCMD and refreshes the supported-games list.
+- [+] Unchecking "Mode anonyme" now opens a Steam login pop-up (account name)
+      and launches steamcmd so you can sign in — account mode succeeds where
+      anonymous downloads are refused.
+- [+] New "Aide / Support" and "Ouvrir le dernier dossier" buttons.
+- [*] Honest download status: success is reported ONLY when the item folder
+      really contains files — no more false "installation terminée".
+
+Version 2.0.7
 - [*] Installer: cleanly uninstalls any previous WorkshopDL version before
       installing — no stale registry entry, files or shortcuts are left
       behind; your settings (WorkshopDL.ini) are preserved

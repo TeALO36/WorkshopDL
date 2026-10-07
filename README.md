@@ -2,7 +2,7 @@
 
 <em>Since most of the popular workshop downloading websites have shutdown or instruct users to download & use SteamCMD, a command-line program,
 I've decided to make my own standalone workshop downloader with a GUI to make things easier.</em>
-WorkshopDL [![Version](https://img.shields.io/badge/version-2.0.7-blue?style=flat-circle)](https://github.com/TeALO36/WorkshopDL/releases)
+WorkshopDL [![Version](https://img.shields.io/badge/version-2.0.8-blue?style=flat-circle)](https://github.com/TeALO36/WorkshopDL/releases)
 
 
 ### Screenshots
@@ -90,12 +90,16 @@ You can also try downloading with SteamWebAPI.
 It works with a lot of SteamCMD unsupported games, usually single-player ones.
 </details>
 
-## WorkshopDL Launcher (new in 2.0.6)
-A modern, guided front-end for WorkshopDL — ideal if you just want to paste a link and go:
+## WorkshopDL 2.0.8 — a single application
+As of 2.0.8 the Launcher **is** WorkshopDL: the old separate `WorkshopDL.exe` window is gone,
+and so is the "open in WorkshopDL" button. Everything — download, update, support — happens in
+one app with a modern interface:
 
 ![Launcher screenshot](screenshots/launcher.png)
 
-- **One-click installer** — `WorkshopDL.2.0.7_installer.exe` installs per-user, no admin needed. It automatically removes any previous WorkshopDL version first, so no leftovers remain.
+- **One-click installer** — `WorkshopDL.2.0.8_installer.exe` installs per-user, no admin needed. It automatically removes any previous WorkshopDL version first, so no leftovers remain.
+- **Mettre à jour / Update button** — updates SteamCMD and the supported-games list.
+- **Steam account mode** — unchecking "Mode anonyme" opens a login pop-up so you can sign in with the account that owns the game (needed for titles like Golf With Your Friends).
 - **Automatic game detection** — paste a Workshop link, the launcher tells you which game it belongs to,
   with retries and a clear message when Steam rate-limits requests.
 - **Force the target game** — disagree with the detection (or the game isn't installed)?

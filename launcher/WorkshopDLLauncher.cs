@@ -216,6 +216,14 @@ namespace WorkshopDLLauncher
             return supportedList;
         }
 
+        // Forces a re-read of the list files (used by the "Mettre à jour" button).
+        public static void ReloadSupported(string modulesDir)
+        {
+            supportedList = null;
+            supportedByName = null;
+            LoadSupported(modulesDir);
+        }
+
         // Extracts the published file id from any steamcommunity sharedfiles URL.
         public static long? ParseItemId(string url)
         {
@@ -409,8 +417,10 @@ namespace WorkshopDLLauncher
         private TextBox urlBox;
         private Button analyzeBtn;
         private Button downloadBtn;
-        private Button openWdlBtn;
+        private Button updateBtn;
         private Button cancelBtn;
+        private Button helpBtn;
+        private Button openFolderBtn;
         private Label statusLabel;
         private Label itemLabel;
         private Label targetLbl;
@@ -436,6 +446,9 @@ namespace WorkshopDLLauncher
         private readonly string workDir;
         private readonly string manualListPath;
         private readonly string hiddenListPath;
+        private readonly string settingsPath;
+        private string lastDownloadDir;        // last successfully downloaded item folder
+        private string steamUser = "";           // remembered Steam account (account mode)
         private Process steamCmdProc;
         private readonly HashSet<string> hiddenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly List<DetectedGame> comboGames = new List<DetectedGame>();
@@ -450,8 +463,12 @@ namespace WorkshopDLLauncher
             hiddenListPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "WorkshopDL", "hidden_games.txt");
+            settingsPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "WorkshopDL", "settings.txt");
 
             WorkshopAnalyzer.LoadSupported(Path.Combine(workDir, "Modules"));
+            LoadSettings();
             LoadHidden();
             BuildUi();
             LoadGames();
@@ -539,9 +556,10 @@ namespace WorkshopDLLauncher
             downloadBtn.Enabled = false;
             downloadBtn.Click += (s, e) => DownloadAsync();
 
-            openWdlBtn = MakeButton("Ouvrir dans WorkshopDL", Color.FromArgb(90, 100, 115), new Point(196, 296), 210);
-            openWdlBtn.Enabled = false;
-            openWdlBtn.Click += (s, e) => HandOverToWorkshopDL();
+            // "Mettre à jour" — the classic WorkshopDL Update button: refreshes
+            // SteamCMD and the supported-games list, right here in the app.
+            updateBtn = MakeButton("Mettre à jour", Color.FromArgb(90, 100, 115), new Point(196, 296), 210);
+            updateBtn.Click += (s, e) => UpdateAsync();
 
             cancelBtn = MakeButton("Annuler", Color.FromArgb(200, 60, 60), new Point(416, 296), 70);
             cancelBtn.Enabled = false;
@@ -550,13 +568,19 @@ namespace WorkshopDLLauncher
 
             anonCheck = new CheckBox
             {
-                Text = "Mode anonyme (décochez si le jeu refuse le téléchargement anonyme)",
+                Text = "Mode anonyme (décochez pour vous connecter avec votre compte Steam)",
                 AutoSize = true,
                 Location = new Point(16, 340),
                 Checked = true
             };
+            // Unchecking anonymous mode immediately offers to sign in to Steam:
+            // account mode succeeds where Valve refuses anonymous downloads.
+            anonCheck.CheckedChanged += (s, e) =>
+            {
+                if (!anonCheck.Checked) OfferSteamLogin();
+            };
             left.Controls.Add(downloadBtn);
-            left.Controls.Add(openWdlBtn);
+            left.Controls.Add(updateBtn);
             left.Controls.Add(cancelBtn);
             left.Controls.Add(anonCheck);
 
@@ -572,6 +596,14 @@ namespace WorkshopDLLauncher
                 ForeColor = Color.FromArgb(90, 95, 105)
             };
             left.Controls.Add(statusLabel);
+
+            // Bottom utility row (important WorkshopDL buttons, in a single app).
+            helpBtn = MakeButton("Aide / Support", Color.FromArgb(70, 85, 105), new Point(16, 536), 150);
+            helpBtn.Click += (s, e) => OpenSupport();
+            openFolderBtn = MakeButton("Ouvrir le dernier dossier", Color.FromArgb(70, 85, 105), new Point(176, 536), 210);
+            openFolderBtn.Click += (s, e) => OpenLastFolder();
+            left.Controls.Add(helpBtn);
+            left.Controls.Add(openFolderBtn);
 
             // Right: detected games.
             // Everything here is docked (never anchored): anchoring captured the
@@ -959,7 +991,6 @@ namespace WorkshopDLLauncher
             locateBtn.Visible = !installed;
 
             downloadBtn.Enabled = !current.Removed && g.AppId != 0;
-            openWdlBtn.Enabled = true;
             if (current.Removed)
                 statusLabel.Text = "Objet retiré du Workshop : le téléchargement échouera probablement.";
             else if (g.AppId == 0)
@@ -1064,7 +1095,6 @@ namespace WorkshopDLLauncher
             resultPanel.Visible = false;
             locateBtn.Visible = false;
             downloadBtn.Enabled = false;
-            openWdlBtn.Enabled = false;
             statusLabel.Text = "Analyse de la page du Workshop…";
             try
             {
@@ -1121,7 +1151,6 @@ namespace WorkshopDLLauncher
 
             downloadCancelled = false;
             downloadBtn.Enabled = false;
-            openWdlBtn.Enabled = false;
             cancelBtn.Visible = true;
             cancelBtn.Enabled = true;
             progress.Visible = true;
@@ -1179,8 +1208,9 @@ namespace WorkshopDLLauncher
                 {
                     // Account mode: show the steamcmd window so the user can type
                     // their Steam login + Steam Guard code interactively.
+                    string login = string.IsNullOrEmpty(steamUser) ? "+login" : ("+login " + steamUser);
                     var psi = new ProcessStartInfo(exe,
-                        string.Format("+login +workshop_download_item {0} {1} +quit", current.AppId, current.ItemId))
+                        string.Format("{0} +workshop_download_item {1} {2} +quit", login, current.AppId, current.ItemId))
                     {
                         WorkingDirectory = Path.GetDirectoryName(exe),
                         UseShellExecute = true
@@ -1199,32 +1229,21 @@ namespace WorkshopDLLauncher
                     }
                 }
 
-                bool success = output.IndexOf("Success. Downloaded item", StringComparison.OrdinalIgnoreCase) >= 0
-                    || FindDownloadedItem(current.AppId, current.ItemId) != null;
-                if (success)
+                // Success is claimed ONLY when the exact item folder exists and really
+                // contains files. The old check also accepted the appid parent folder
+                // (even empty), so a failed download reported "terminé" and opened an
+                // empty folder — exactly the bug users hit.
+                string dest = ExtractClaimedPath(output, current.ItemId)
+                    ?? FindDownloadedItem(workDir, current.AppId, current.ItemId);
+                statusLabel.Text = DescribeOutcome(output, exit, dest);
+                if (dest != null) lastDownloadDir = dest;
+                if (dest != null)
                 {
-                    string dest = FindDownloadedItem(current.AppId, current.ItemId);
-                    statusLabel.Text = "✔ Téléchargement terminé." + (dest != null ? "\n" + dest : "");
-                    if (dest != null)
-                    {
-                        var open = MessageBox.Show(this,
-                            "Objet téléchargé :\n" + dest + "\n\nOuvrir le dossier ?", "WorkshopDL Launcher",
-                            MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-                        if (open == DialogResult.Yes)
-                            Process.Start(new ProcessStartInfo("explorer.exe", dest) { UseShellExecute = true });
-                    }
-                }
-                else if (output.IndexOf("Missing decryption key", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    statusLabel.Text = "Steam refuse le téléchargement anonyme pour ce jeu.\nDécochez « Mode anonyme » et connectez-vous avec votre compte Steam (qui possède le jeu).";
-                }
-                else if (exit != 0)
-                {
-                    statusLabel.Text = "Échec (code " + exit + ").\nEssayez : décochez le mode anonyme, ou utilisez « Ouvrir dans WorkshopDL ».\n\n" + Tail(output, 400);
-                }
-                else
-                {
-                    statusLabel.Text = "Réponse inattendue de steamcmd.\n" + Tail(output, 400);
+                    var open = MessageBox.Show(this,
+                        "Objet téléchargé :\n" + dest + "\n\nOuvrir le dossier ?", "WorkshopDL Launcher",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                    if (open == DialogResult.Yes)
+                        Process.Start(new ProcessStartInfo("explorer.exe", dest) { UseShellExecute = true });
                 }
             }
             catch (Exception ex)
@@ -1237,11 +1256,11 @@ namespace WorkshopDLLauncher
                 cancelBtn.Visible = false;
                 cancelBtn.Enabled = false;
                 downloadBtn.Enabled = current != null && current.Ok && !current.Removed && current.AppId != 0;
-                openWdlBtn.Enabled = current != null && current.Ok;
             }
         }
 
-        private string FindDownloadedItem(int appId, long itemId)
+        // Strict: only the EXACT item folder counts, and only when it really holds files.
+        public static string FindDownloadedItem(string workDir, int appId, long itemId)
         {
             try
             {
@@ -1249,39 +1268,258 @@ namespace WorkshopDLLauncher
                 string root = exe != null ? Path.GetDirectoryName(exe) : null;
                 var candidates = new List<string>();
                 if (root != null)
-                {
                     candidates.Add(Path.Combine(root, "steamapps", "workshop", "content", appId.ToString(), itemId.ToString()));
-                    candidates.Add(Path.Combine(root, "steamapps", "workshop", "content", appId.ToString()));
-                }
                 string steam = SteamLocator.FindSteamPath();
                 if (steam != null)
                     candidates.Add(Path.Combine(steam, "steamapps", "workshop", "content", appId.ToString(), itemId.ToString()));
                 foreach (var c in candidates)
-                    if (Directory.Exists(c)) return c;
+                    if (Directory.Exists(c) && HasFiles(c)) return c;
             }
             catch { }
             return null;
         }
 
-        private void HandOverToWorkshopDL()
+        public static bool HasFiles(string dir)
         {
-            if (current == null || !current.Ok) { statusLabel.Text = "Analysez d'abord un lien."; return; }
+            try { return Directory.GetFiles(dir, "*", SearchOption.AllDirectories).Length > 0; }
+            catch { return false; }
+        }
+
+        // Parses steamcmd's own "Success. Downloaded item <id> to \"<path>\"" line and
+        // verifies that path on disk (must exist and hold files) before it is trusted.
+        public static string ExtractClaimedPath(string output, long itemId)
+        {
+            if (string.IsNullOrEmpty(output)) return null;
             try
             {
-                Clipboard.SetText("https://steamcommunity.com/sharedfiles/filedetails/?id=" + current.ItemId);
-                string wdl = Path.Combine(workDir, "WorkshopDL.exe");
-                if (!File.Exists(wdl))
+                var m = Regex.Match(output, @"Success\. Downloaded item " + itemId + @" to ""([^""]+)""");
+                if (!m.Success) return null;
+                string p = m.Groups[1].Value;
+                return (Directory.Exists(p) && HasFiles(p)) ? p : null;
+            }
+            catch { return null; }
+        }
+
+        // Single source of truth for the message shown to the user (GUI and --download CLI):
+        // a folder that does not exist or is empty is NEVER reported as success.
+        public static string DescribeOutcome(string output, int exit, string dest)
+        {
+            if (dest != null)
+                return "✔ Téléchargement terminé.\n" + dest;
+            if (output != null && output.IndexOf("Missing decryption key", StringComparison.OrdinalIgnoreCase) >= 0)
+                return "✖ Échec : Steam refuse le téléchargement anonyme pour ce jeu (clé de déchiffrement manquante).\nAucun fichier n'a été reçu.\nDécochez « Mode anonyme » et connectez-vous avec votre compte Steam (qui possède le jeu).";
+            if (output != null && output.IndexOf("Success. Downloaded item", StringComparison.OrdinalIgnoreCase) >= 0)
+                return "✖ Steam annonce un succès mais aucun fichier n'a été trouvé sur le disque — rien n'a été enregistré, ce n'est PAS une installation réussie.\n\n" + Tail(output, 400);
+            if (exit != 0)
+                return "✖ Échec (code " + exit + ") — aucun fichier téléchargé.\nEssayez : décochez le mode anonyme et connectez-vous avec votre compte Steam (bouton « Mettre à jour » si steamcmd pose problème).\n\n" + Tail(output, 400);
+            if (output != null && output.IndexOf("ERROR!", StringComparison.OrdinalIgnoreCase) >= 0)
+                return "✖ Échec : steamcmd a renvoyé une erreur — aucun fichier téléchargé.\n\n" + Tail(output, 400);
+            if (output != null && output.Trim().Length == 0)
+                return "✖ Échec : aucun retour de steamcmd — aucun fichier téléchargé.\nVérifiez votre login / Steam Guard dans la fenêtre steamcmd.\nCode de sortie : " + exit;
+            return "✖ Échec : réponse inattendue de steamcmd — aucun fichier téléchargé.\n" + Tail(output, 400);
+        }
+
+        // Synchronous capture of a steamcmd run (used by the --download CLI test).
+        public static int RunSteamCmd(string exe, string steamArgs, out string output)
+        {
+            var psi = new ProcessStartInfo(exe, steamArgs)
+            {
+                WorkingDirectory = Path.GetDirectoryName(exe),
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            var proc = Process.Start(psi);
+            var so = proc.StandardOutput.ReadToEndAsync();
+            var se = proc.StandardError.ReadToEndAsync();
+            proc.WaitForExit();
+            output = so.Result + se.Result;
+            return proc.ExitCode;
+        }
+
+        // ---------- settings (remember the Steam account) ----------
+        private void LoadSettings()
+        {
+            try
+            {
+                if (!File.Exists(settingsPath)) return;
+                foreach (var line in File.ReadAllLines(settingsPath))
                 {
-                    statusLabel.Text = "WorkshopDL.exe introuvable à côté du launcher (" + workDir + ").";
-                    return;
+                    int i = line.IndexOf('=');
+                    if (i <= 0) continue;
+                    string k = line.Substring(0, i).Trim();
+                    string v = line.Substring(i + 1).Trim();
+                    if (string.Equals(k, "steam_user", StringComparison.OrdinalIgnoreCase)) steamUser = v;
                 }
-                Process.Start(new ProcessStartInfo(wdl) { WorkingDirectory = workDir, UseShellExecute = true });
-                statusLabel.Text = "Lien copié dans le presse-papiers — WorkshopDL a été lancé.\nIl détecte l'URL automatiquement (Auto-URL detection).";
+            }
+            catch { }
+        }
+
+        private void SaveSettings()
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(settingsPath));
+                File.WriteAllText(settingsPath, "steam_user=" + steamUser + "\r\n");
+            }
+            catch { }
+        }
+
+        // ---------- account mode: sign in to Steam ----------
+        // Triggered the moment "Mode anonyme" is unchecked: offers to log in to the
+        // Steam account that owns the game, because Valve refuses anonymous workshop
+        // downloads for many titles (e.g. Golf With Your Friends).
+        private void OfferSteamLogin()
+        {
+            string who = string.IsNullOrEmpty(steamUser) ? "votre compte Steam" : ("le compte « " + steamUser + " »");
+            var answer = MessageBox.Show(this,
+                "Vous avez désactivé le mode anonyme.\n\n" +
+                "Le mode connecté télécharge avec votre compte Steam et fonctionne pour les jeux " +
+                "qui refusent les téléchargements anonymes.\n\n" +
+                "Voulez-vous vous connecter à " + who + " maintenant ?\n" +
+                "(steamcmd ouvre une fenêtre pour saisir votre mot de passe et le code Steam Guard.)",
+                "Connexion Steam",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (answer == DialogResult.Yes) SteamLogin();
+        }
+
+        private void SteamLogin()
+        {
+            string user = steamUser;
+            using (var dlg = new SteamLoginDialog(user))
+            {
+                if (dlg.ShowDialog(this) != DialogResult.OK) return;
+                user = dlg.UserName.Trim();
+            }
+            if (user.Length == 0)
+            {
+                statusLabel.Text = "Connexion annulée : aucun nom de compte saisi.\nDécochez à nouveau « Mode anonyme » pour réessayer.";
+                return;
+            }
+            steamUser = user;
+            SaveSettings();
+            try
+            {
+                string exe = SteamCmdRunner.FindSteamCmd(workDir) ?? SteamCmdRunner.Bootstrap(workDir);
+                if (exe == null) { statusLabel.Text = "Impossible de trouver/télécharger steamcmd."; return; }
+                // Visible console: the user types the password + Steam Guard there.
+                Process.Start(new ProcessStartInfo(exe, "+login " + user + " +quit")
+                {
+                    WorkingDirectory = Path.GetDirectoryName(exe),
+                    UseShellExecute = true
+                });
+                statusLabel.Text = "Connexion à « " + user + " » via steamcmd.\n" +
+                    "Saisissez votre mot de passe (et le code Steam Guard) dans la fenêtre steamcmd, " +
+                    "puis lancez le téléchargement : il utilisera ce compte.";
             }
             catch (Exception ex)
             {
-                statusLabel.Text = "Erreur : " + ex.Message;
+                statusLabel.Text = "Erreur de connexion : " + ex.Message;
             }
+        }
+
+        // ---------- Update (classic WorkshopDL button, now in-app) ----------
+        private async void UpdateAsync()
+        {
+            if (!updateBtn.Enabled) return;
+            updateBtn.Enabled = false;
+            progress.Visible = true;
+            statusLabel.Text = "Mise à jour de SteamCMD…";
+            var sb = new StringBuilder();
+            try
+            {
+                string exe = await Task.Run(() =>
+                {
+                    string found = SteamCmdRunner.FindSteamCmd(workDir);
+                    return found ?? SteamCmdRunner.Bootstrap(workDir);
+                });
+                if (exe == null)
+                {
+                    sb.AppendLine("✖ steamcmd introuvable et le téléchargement a échoué.");
+                }
+                else
+                {
+                    string output = "";
+                    // "+quit" makes steamcmd update itself to the latest version.
+                    int code = await Task.Run(() => RunSteamCmd(exe, "+quit", out output));
+                    sb.AppendLine(code == 0
+                        ? "✔ SteamCMD à jour : " + exe
+                        : "✖ Mise à jour SteamCMD — code " + code + " · " + Tail(output, 200));
+                }
+
+                bool listOk = await Task.Run(() => RefreshSupportedList());
+                var sup = WorkshopAnalyzer.SupportedGames();
+                sb.AppendLine(listOk
+                    ? "✔ Liste des jeux compatibles actualisée" + (sup != null ? " (" + sup.Count + " jeux)" : "") + "."
+                    : "i Liste des jeux compatibles conservée (téléchargement indisponible — hors-ligne ?).");
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine("✖ Erreur de mise à jour : " + ex.Message);
+            }
+            finally
+            {
+                progress.Visible = false;
+                updateBtn.Enabled = true;
+                statusLabel.Text = "Mise à jour terminée.\n" + sb.ToString();
+            }
+        }
+
+        // Best-effort refresh of the supported-games list from the project repo.
+        private static bool RefreshSupportedList()
+        {
+            try
+            {
+                string modules = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Modules");
+                Directory.CreateDirectory(modules);
+                ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;
+                string baseUrl = "https://raw.githubusercontent.com/TeALO36/WorkshopDL/main/staging/Modules/";
+                bool any = false;
+                foreach (var name in new[] { "games.txt", "appids.txt" })
+                {
+                    try
+                    {
+                        using (var wc = new WebClient())
+                        {
+                            string content = wc.DownloadString(baseUrl + name);
+                            if (content != null && content.Trim().Length > 0)
+                            {
+                                File.WriteAllText(Path.Combine(modules, name), content);
+                                any = true;
+                            }
+                        }
+                    }
+                    catch { }
+                }
+                if (any) WorkshopAnalyzer.ReloadSupported(modules);
+                return any;
+            }
+            catch { return false; }
+        }
+
+        // ---------- support / last downloaded folder ----------
+        private void OpenSupport()
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo("https://github.com/TeALO36/WorkshopDL/issues")
+                { UseShellExecute = true });
+                statusLabel.Text = "Page d'aide/support ouverte dans votre navigateur.";
+            }
+            catch (Exception ex) { statusLabel.Text = "Erreur : " + ex.Message; }
+        }
+
+        private void OpenLastFolder()
+        {
+            string dir = lastDownloadDir;
+            if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
+            {
+                statusLabel.Text = "Aucun dossier de téléchargement connu pour l'instant — lancez d'abord un téléchargement.";
+                return;
+            }
+            try { Process.Start(new ProcessStartInfo("explorer.exe", dir) { UseShellExecute = true }); }
+            catch (Exception ex) { statusLabel.Text = "Erreur : " + ex.Message; }
         }
 
         private static string Tail(string s, int n)
@@ -1299,6 +1537,70 @@ namespace WorkshopDLLauncher
             }
             catch { }
             base.OnFormClosed(e);
+        }
+    }
+
+    // Small modal prompt asking for the Steam account name before opening account mode
+    // (used when the anonymous checkbox is unchecked). Password + Steam Guard are typed
+    // in the steamcmd console, which this dialog spawns afterwards.
+    public class SteamLoginDialog : Form
+    {
+        private TextBox userBox;
+        public string UserName { get { return userBox.Text; } }
+
+        public SteamLoginDialog(string initial)
+        {
+            Text = "Connexion Steam";
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            StartPosition = FormStartPosition.CenterParent;
+            MaximizeBox = false;
+            MinimizeBox = false;
+            ShowInTaskbar = false;
+            ClientSize = new Size(400, 192);
+            Font = new Font("Segoe UI", 9.5F);
+            BackColor = Color.White;
+
+            var title = new Label
+            {
+                Text = "Se connecter à un compte Steam",
+                Font = new Font("Segoe UI", 12F, FontStyle.Bold),
+                AutoSize = true,
+                Location = new Point(16, 14)
+            };
+            var desc = new Label
+            {
+                Text = "Le mode connecté réussit là où le mode anonyme est refusé.\n" +
+                       "Entrez le nom du compte Steam qui possède le jeu :",
+                AutoSize = false,
+                Size = new Size(368, 44),
+                Location = new Point(16, 44),
+                ForeColor = Color.FromArgb(90, 95, 105)
+            };
+            userBox = new TextBox
+            {
+                Location = new Point(16, 94),
+                Width = 368,
+                Text = initial ?? ""
+            };
+            var note = new Label
+            {
+                Text = "Mot de passe + Steam Guard se saisissent dans la fenêtre steamcmd.",
+                AutoSize = false,
+                Size = new Size(368, 20),
+                Location = new Point(16, 120),
+                ForeColor = Color.FromArgb(130, 135, 145),
+                Font = new Font("Segoe UI", 8.5F)
+            };
+            var ok = new Button { Text = "Se connecter", DialogResult = DialogResult.OK, Location = new Point(196, 150), Size = new Size(104, 30) };
+            var cancel = new Button { Text = "Annuler", DialogResult = DialogResult.Cancel, Location = new Point(308, 150), Size = new Size(76, 30) };
+            Controls.Add(title);
+            Controls.Add(desc);
+            Controls.Add(userBox);
+            Controls.Add(note);
+            Controls.Add(ok);
+            Controls.Add(cancel);
+            AcceptButton = ok;
+            CancelButton = cancel;
         }
     }
 
@@ -1401,9 +1703,58 @@ namespace WorkshopDLLauncher
                 Environment.Exit(fail);
             }
 
+            // Headless real-download test: same analysis + steamcmd + same success
+            // criteria as the GUI. Exit code 0 only when files are verified on disk.
+            if (args.Length > 0 && args[0] == "--download" && args.Length > 1)
+            {
+                Environment.Exit(RunHeadlessDownload(args[1]));
+                return;
+            }
+
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new MainForm());
+        }
+
+        static int RunHeadlessDownload(string url)
+        {
+            try { Console.OutputEncoding = System.Text.Encoding.UTF8; } catch { }
+            string workDir = AppDomain.CurrentDomain.BaseDirectory;
+            WorkshopAnalyzer.LoadSupported(Path.Combine(workDir, "Modules"));
+            WorkshopAnalyzer.LoadSupported("Modules");
+            var r = WorkshopAnalyzer.Analyze(url);
+            Console.WriteLine("ok=" + r.Ok + " appid=" + r.AppId + " itemid=" + r.ItemId +
+                              " game=" + r.GameName + " removed=" + r.Removed);
+            if (!r.Ok || r.AppId == 0)
+            {
+                Console.WriteLine("STATUS:");
+                Console.WriteLine("✖ Échec : analyse du lien impossible — " + (r.Error ?? "AppID inconnu"));
+                return 1;
+            }
+            string exe = SteamCmdRunner.FindSteamCmd(workDir) ?? SteamCmdRunner.Bootstrap(workDir);
+            if (exe == null)
+            {
+                Console.WriteLine("STATUS:");
+                Console.WriteLine("✖ Échec : impossible de trouver/télécharger steamcmd.");
+                return 1;
+            }
+            string steamArgs = string.Format(
+                "+login anonymous +workshop_download_item {0} {1} +quit", r.AppId, r.ItemId);
+            Console.WriteLine("running: steamcmd " + steamArgs);
+            string output;
+            int exit = MainForm.RunSteamCmd(exe, steamArgs, out output);
+            string dest = MainForm.ExtractClaimedPath(output, r.ItemId)
+                ?? MainForm.FindDownloadedItem(workDir, r.AppId, r.ItemId);
+            Console.WriteLine("exit=" + exit);
+            Console.WriteLine("STATUS:");
+            Console.WriteLine(MainForm.DescribeOutcome(output, exit, dest));
+            if (dest == null) return 1;
+            var files = Directory.GetFiles(dest, "*", SearchOption.AllDirectories);
+            long total = 0;
+            foreach (var f in files) total += new FileInfo(f).Length;
+            Console.WriteLine("DEST=" + dest);
+            Console.WriteLine("FILES=" + files.Length + " BYTES=" + total);
+            return files.Length > 0 ? 0 : 1;
         }
     }
 }
