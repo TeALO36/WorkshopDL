@@ -1,4 +1,4 @@
-WorkshopDL 2.0.6 — Quick start / Démarrage rapide
+WorkshopDL 2.0.7 — Quick start / Démarrage rapide
 ==================================================
 
 ENGLISH

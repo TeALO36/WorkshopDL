@@ -1,3 +1,12 @@
+Version 2.0.7
+- [*] Installer: cleanly uninstalls any previous WorkshopDL version before
+      installing — no stale registry entry, files or shortcuts are left
+      behind; your settings (WorkshopDL.ini) are preserved
+- [*] Installer: fixed the "Internal error: CallSpawnServer: Unexpected
+      response: $0" error that could abort the installation when choosing
+      the "all users" install mode (the "launch now" box is now skipped in
+      that mode; the shortcuts are created as usual)
+
 Version 2.0.6
 - [+] New one-click Windows installer (per-user, no admin required)
 - [+] Launcher: force the target game with a selector — override the

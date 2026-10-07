@@ -2,7 +2,7 @@
 
 <em>Since most of the popular workshop downloading websites have shutdown or instruct users to download & use SteamCMD, a command-line program,
 I've decided to make my own standalone workshop downloader with a GUI to make things easier.</em>
-WorkshopDL [![Version](https://img.shields.io/badge/version-2.0.6-blue?style=flat-circle)](https://github.com/TeALO36/WorkshopDL/releases)
+WorkshopDL [![Version](https://img.shields.io/badge/version-2.0.7-blue?style=flat-circle)](https://github.com/TeALO36/WorkshopDL/releases)
 
 
 ### Screenshots
@@ -95,7 +95,7 @@ A modern, guided front-end for WorkshopDL — ideal if you just want to paste a 
 
 ![Launcher screenshot](screenshots/launcher.png)
 
-- **One-click installer** — `WorkshopDL.2.0.6_installer.exe` installs per-user, no admin needed.
+- **One-click installer** — `WorkshopDL.2.0.7_installer.exe` installs per-user, no admin needed. It automatically removes any previous WorkshopDL version first, so no leftovers remain.
 - **Automatic game detection** — paste a Workshop link, the launcher tells you which game it belongs to,
   with retries and a clear message when Steam rate-limits requests.
 - **Force the target game** — disagree with the detection (or the game isn't installed)?
