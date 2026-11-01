@@ -216,6 +216,32 @@ namespace WorkshopDLLauncher
             return supportedList;
         }
 
+        public static int LookupAppId(string gameName)
+        {
+            if (supportedByName != null && !string.IsNullOrEmpty(gameName))
+            {
+                int id;
+                if (supportedByName.TryGetValue(gameName, out id)) return id;
+            }
+            return 0;
+        }
+
+        public static int ReadOnlineFixAppId(string folder)
+        {
+            try
+            {
+                string ini = Path.Combine(folder, "OnlineFix.ini");
+                if (!File.Exists(ini)) return 0;
+                foreach (var line in File.ReadAllLines(ini))
+                {
+                    var mt = Regex.Match(line, @"^\s*RealAppId\s*=\s*(\d+)", RegexOptions.IgnoreCase);
+                    if (mt.Success) { int id; if (int.TryParse(mt.Groups[1].Value, out id)) return id; }
+                }
+            }
+            catch { }
+            return 0;
+        }
+
         // Forces a re-read of the list files (used by the "Mettre à jour" button).
         public static void ReloadSupported(string modulesDir)
         {
@@ -1057,6 +1083,29 @@ namespace WorkshopDLLauncher
                     }
                 }
             found:
+                if (appId == 0)
+                {
+                    appId = WorkshopAnalyzer.ReadOnlineFixAppId(path);
+                    if (appId != 0)
+                    {
+                        var sup = WorkshopAnalyzer.SupportedGames();
+                        if (sup != null)
+                        {
+                            var entry = sup.Find(kv => kv.Value == appId);
+                            if (!string.IsNullOrEmpty(entry.Key)) name = entry.Key;
+                        }
+                    }
+                }
+                if (appId == 0)
+                {
+                    appId = WorkshopAnalyzer.LookupAppId(name);
+                    if (appId == 0)
+                    {
+                        string parent = new DirectoryInfo(path).Parent?.Name;
+                        if (!string.IsNullOrEmpty(parent))
+                            appId = WorkshopAnalyzer.LookupAppId(parent);
+                    }
+                }
                 if (games.Exists(g => string.Equals(g.InstallPath, path, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(path)))
                 {
                     MessageBox.Show(this, "Ce dossier est déjà dans la liste.", "WorkshopDL Launcher",
